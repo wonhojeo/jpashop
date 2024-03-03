@@ -1,10 +1,12 @@
 package jpabook.jpashop.repository;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
 import jpabook.jpashop.api.OrderSimpleController;
-import jpabook.jpashop.domain.Member;
+import jpabook.jpashop.domain.*;
 import jpabook.jpashop.domain.Order;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -31,41 +33,33 @@ public class OrderRepository {
 
     public List<Order> findAll(OrderSearch orderSearch){
 
-        //language=JPAQL
-        String jpql = "select o From Order o join o.member m";
-        boolean isFirstCondition = true;
-        //주문 상태 검색
-        if (orderSearch.getOrderStatus() != null) {
-            if (isFirstCondition) {
-                jpql += " where";
-                isFirstCondition = false;
-            } else {
-                jpql += " and";
-            }
-            jpql += " o.status = :status";
-        }
-        //회원 이름 검색
-        if (StringUtils.hasText(orderSearch.getMemberName())) {
-            if (isFirstCondition) {
-                jpql += " where";
-                isFirstCondition = false;
-            } else {
-                jpql += " and";
-            }
-            jpql += " m.name like :name";
-        }
+        JPAQueryFactory jpaQueryFactory = new JPAQueryFactory(em);
 
-        TypedQuery<Order> query = em.createQuery(jpql, Order.class)
-                .setMaxResults(1000); //최대 1000건
-        if (orderSearch.getOrderStatus() != null) {
-            query = query.setParameter("status", orderSearch.getOrderStatus());
-        }
-        if (StringUtils.hasText(orderSearch.getMemberName())) {
-            query = query.setParameter("name", orderSearch.getMemberName());
-        }
-
-        return query.getResultList();
+        return jpaQueryFactory
+                .select(QOrder.order)
+                .from(QOrder.order)
+                .join(QOrder.order.member, QMember.member)
+                .where(statusEq(orderSearch.getOrderStatus()), nameLike(orderSearch.getMemberName()))
+                //.where(order.status.eq(orderSearch.getOrderStatus()))
+                .limit(1000)
+                .fetch() ;
     }
+
+    private static BooleanExpression nameLike(String memberName) {
+        if(!StringUtils.hasText(memberName)){
+            return null;
+        }
+
+        return QMember.member.name.like(memberName);
+    }
+
+    private BooleanExpression statusEq(OrderStatus statusCond){
+        if(statusCond==null){
+            return null;
+        }
+        return QOrder.order.status.eq(statusCond);
+    }
+
     public List<Order> findAllByString(OrderSearch orderSearch) {
         //language=JPAQL
         String jpql = "select o From Order o join o.member m";
